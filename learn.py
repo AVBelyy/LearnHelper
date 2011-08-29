@@ -59,10 +59,10 @@ while True:
 			repeated += 1
 			del repeat[repeat.index(word)]
 		print ("[%s/%s] " % (repeated, all)) + word[2] + "?",
-		translation = raw_input().decode(sys.stdout.encoding).lower()
+		translation = raw_input().decode(sys.stdout.encoding)
 	except EOFError:
 		break
-	correct = translation in word[3].split("|")
+	correct = translation in word[3].split("|") or translation.lower() in word[3].split("|")
 	if correct: # update last_repeat in words table
 		db.execute("UPDATE words SET last_repeat=? WHERE id=?", (int(time()), word[0]))
 
