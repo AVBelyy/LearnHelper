@@ -1,25 +1,34 @@
 #!/usr/bin/env python
 
 import gtk, gobject, sqlite3
+from os.path import basename
+
+base_title = "LearnHelper editor"
 
 class DBEditor():
 
     def __init__(self):
         self.window = gtk.Window()
-        self.window.connect("destroy", gtk.main_quit)
+        self.window.connect("destroy", self.exit)
+        self.window.set_title(base_title)
+        self.window.set_default_size(500, 300)
         self.main_vbox = gtk.VBox()
 
         self.menu_bar = gtk.MenuBar()
         self.file_menu = gtk.Menu()
         self.open_item = gtk.MenuItem("Open")
         self.save_item = gtk.MenuItem("Save")
+        self.exit_item = gtk.MenuItem("Exit")
         self.file_menu.append(self.open_item)
         self.file_menu.append(self.save_item)
+        self.file_menu.append(gtk.SeparatorMenuItem())
+        self.file_menu.append(self.exit_item)
         self.file_menu_item = gtk.MenuItem("File")
         self.file_menu_item.set_submenu(self.file_menu)
         self.menu_bar.append(self.file_menu_item)
         self.open_item.connect("activate", self.open_db)
         self.save_item.connect("activate", self.save_db)
+        self.exit_item.connect("activate", self.exit)
 
         self.hb_words = gtk.HBox()
         self.scr_words = gtk.ScrolledWindow()
@@ -86,6 +95,9 @@ class DBEditor():
         self.db = None
         self.cursor = None
 
+        self.modified = False
+        self.open_db(None)
+
     def open_db(self, item):
         dialog = gtk.FileChooserDialog(
             "Select database file",
@@ -122,6 +134,8 @@ class DBEditor():
                     translations.append((tr,))
             self.words_store.append((self.linguas[lang], word, translations, id))
 
+        self.window.set_title("%s - %s" % (basename(filename), base_title))
+
     def lingua_changed(self, widget, path, text, model):
         model[path][0] = text
 
@@ -130,6 +144,7 @@ class DBEditor():
         self.translations.set_model(self.words_store.get(it, 2)[0])
 
     def word_edited(self, widget, path, text, model):
+        self.modified = True
         model[path][1] = text
         self.cursor.execute("UPDATE words SET word = ? WHERE id = ?", (unicode(text), model[path][3]))
 
@@ -139,6 +154,7 @@ class DBEditor():
         self.update_translations()
 
     def do_add_word(self, widget):
+        self.modified = True
         res = self.cursor.execute("INSERT INTO words (lang_id, last_repeat) VALUES (1, 0)")
         tr_model = gtk.ListStore(str)
         self.words_store.append((self.linguas[1], "", tr_model, res.lastrowid))
@@ -151,6 +167,7 @@ class DBEditor():
             id = self.words_store.get(it, 3)[0]
             self.cursor.execute("DELETE FROM words WHERE id = ?", (id, ))
             self.words_store.remove(it)
+            self.modified = True
         except TypeError:
             pass
 
@@ -165,6 +182,7 @@ class DBEditor():
         self.update_translations()
 
     def update_translations(self):
+        self.modified = True
         linguas = dict((lang, id) for id, lang in self.linguas.items())
         it = self.words_store.get_iter(self.words.get_cursor()[0])
         id = self.words_store.get(it, 3)[0]
@@ -172,7 +190,18 @@ class DBEditor():
         self.cursor.execute("UPDATE words SET translation = ? WHERE id = ?", ("|".join(map(lambda x: unicode(x[0]), list(trans))), id))
 
     def save_db(self, widget):
+        self.modified = False
         self.db.commit()
+
+    def exit(self, widget):
+        if self.modified:
+            md = gtk.MessageDialog(self.window,
+                                   gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION,
+                                   gtk.BUTTONS_YES_NO, "Are you sure? You have unsaved changes!")
+            result = md.run()
+            md.destroy()
+        if not self.modified or result == gtk.RESPONSE_YES:
+            gtk.main_quit()
 
 if __name__ == '__main__':
     editor = DBEditor()
