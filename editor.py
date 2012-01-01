@@ -30,6 +30,18 @@ class DBEditor():
         self.save_item.connect("activate", self.save_db)
         self.exit_item.connect("activate", self.exit)
 
+        self.langs_menu = gtk.Menu()
+        self.add_lang_item = gtk.MenuItem("Add language")
+        self.del_lang_item = gtk.MenuItem("Remove language")
+        self.ren_lang_item = gtk.MenuItem("Rename language")
+        self.langs_menu.append(self.add_lang_item)
+        self.langs_menu.append(self.del_lang_item)
+        self.langs_menu.append(self.ren_lang_item)
+        self.langs_menu_item = gtk.MenuItem("Languages")
+        self.langs_menu_item.set_submenu(self.langs_menu)
+        self.add_lang_item.connect("activate", self.add_language_dialog)
+        self.menu_bar.append(self.langs_menu_item)
+
         self.hb_words = gtk.HBox()
         self.scr_words = gtk.ScrolledWindow()
         self.scr_words.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
@@ -138,6 +150,13 @@ class DBEditor():
 
     def lingua_changed(self, widget, path, text, model):
         model[path][0] = text
+        self.modified = True
+        r_lang = None
+        for lang_id, lang in self.linguas.items():
+            if lang == text:
+                r_lang = lang_id
+        if r_lang is not None:
+            self.cursor.execute("UPDATE words SET lang_id = ? WHERE word = ?", (r_lang, model[path][1]))
 
     def word_selected(self, widget):
         it = self.words_store.get_iter(widget.get_cursor()[0])
@@ -192,6 +211,29 @@ class DBEditor():
     def save_db(self, widget):
         self.modified = False
         self.db.commit()
+
+    def add_language_dialog(self, widget):
+        dialog = gtk.Dialog("Add language",
+                            self.window,
+                            gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
+                            (gtk.STOCK_CANCEL, gtk.RESPONSE_REJECT,
+                            gtk.STOCK_OK, gtk.RESPONSE_ACCEPT))
+        label = gtk.Label("Specify language name:")
+        edit = gtk.Entry()
+        dialog.vbox.pack_start(label)
+        dialog.vbox.pack_start(edit)
+        label.show()
+        edit.show()
+        response = dialog.run()
+
+        if response == gtk.RESPONSE_ACCEPT:
+            self.modified = True
+            self.cursor.execute("INSERT INTO dictionaries (lang) VALUES (?)", (edit.get_text(),))
+            linguas_model = self.combo_renderer.get_property("model")
+            linguas_model.append((edit.get_text(),))
+            lang_id = self.cursor.execute("SELECT id FROM dictionaries WHERE lang = ?", (edit.get_text(),)).next()[0]
+            self.linguas[lang_id] = edit.get_text()
+        dialog.destroy()
 
     def exit(self, widget):
         if self.modified:
