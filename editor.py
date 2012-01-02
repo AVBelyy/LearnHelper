@@ -192,10 +192,13 @@ class DBEditor():
             self.cursor.execute("DELETE FROM words WHERE id = ?", (id, ))
             self.words_store.remove(it)
             self.modified = True
+            self.translations.set_model(self.translations_store)
         except TypeError:
             pass
 
     def do_add_translation(self, widget, scroll=True):
+        if self.words.get_cursor()[0] is None:
+            return
         model = self.translations.get_model()
         model.append(("New translation",))
         if scroll:
@@ -204,6 +207,8 @@ class DBEditor():
                                          True)
 
     def do_remove_translation(self, widget):
+        if self.translations.get_cursor()[0] is None or self.words.get_cursor()[0] is None:
+            return
         model = self.translations.get_model()
         it = model.get_iter(self.translations.get_cursor()[0])
         model.remove(it)
