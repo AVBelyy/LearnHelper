@@ -159,7 +159,7 @@ class DBEditor():
             if lang == text:
                 r_lang = lang_id
         if r_lang is not None:
-            self.cursor.execute("UPDATE words SET lang_id = ? WHERE word = ?", (r_lang, model[path][1]))
+            self.cursor.execute("UPDATE words SET lang_id = ? WHERE word = ?", (r_lang, unicode(model[path][1])))
 
     def word_selected(self, widget):
         it = self.words_store.get_iter(widget.get_cursor()[0])
@@ -242,10 +242,10 @@ class DBEditor():
 
         if response == gtk.RESPONSE_ACCEPT:
             self.modified = True
-            self.cursor.execute("INSERT INTO dictionaries (lang) VALUES (?)", (edit.get_text(),))
+            inserted = self.cursor.execute("INSERT INTO dictionaries (lang) VALUES (?)", (unicode(edit.get_text()),))
             linguas_model = self.combo_renderer.get_property("model")
             linguas_model.append((edit.get_text(),))
-            lang_id = self.cursor.execute("SELECT id FROM dictionaries WHERE lang = ?", (edit.get_text(),)).next()[0]
+            lang_id = inserted.lastrowid
             self.linguas[lang_id] = edit.get_text()
         dialog.destroy()
 
