@@ -2,6 +2,7 @@
 
 import gtk, gobject, sqlite3
 from os.path import basename
+import os
 
 base_title = "LearnHelper editor"
 
@@ -122,6 +123,7 @@ class DBEditor():
         filter.add_pattern("*.db")
         filter.add_mime_type("application/x-sqlite3")
         dialog.add_filter(filter)
+        dialog.set_current_folder(".")
         dialog.run()
         dialog.hide()
 
