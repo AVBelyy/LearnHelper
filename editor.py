@@ -177,8 +177,10 @@ class DBEditor():
         res = self.cursor.execute("INSERT INTO words (lang_id, last_repeat) VALUES (1, 0)")
         tr_model = gtk.ListStore(str)
         self.words_store.append((self.linguas[1], "", tr_model, res.lastrowid))
-        bar = self.scr_words.get_vscrollbar()
-        bar.set_value(bar.get_adjustment().upper)
+        self.words.set_cursor(self.words_store.iter_n_children(None) - 1,
+                              self.words.get_column(1),
+                              True)
+        self.do_add_translation(None, False)
 
     def do_remove_word(self, widget):
         try:
@@ -190,9 +192,13 @@ class DBEditor():
         except TypeError:
             pass
 
-    def do_add_translation(self, widget):
+    def do_add_translation(self, widget, scroll=True):
         model = self.translations.get_model()
         model.append(("New translation",))
+        if scroll:
+            self.translations.set_cursor(model.iter_n_children(None) - 1,
+                                         self.translations.get_column(0),
+                                         True)
 
     def do_remove_translation(self, widget):
         model = self.translations.get_model()
