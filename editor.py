@@ -9,7 +9,8 @@ class DBEditor():
 
     def __init__(self):
         self.window = gtk.Window()
-        self.window.connect("destroy", self.exit)
+        self.window.connect("delete_event", self.exit, False)
+        self.window.connect("destroy", gtk.main_quit)
         self.window.set_title(base_title)
         self.window.set_default_size(500, 300)
         self.main_vbox = gtk.VBox()
@@ -241,7 +242,7 @@ class DBEditor():
             self.linguas[lang_id] = edit.get_text()
         dialog.destroy()
 
-    def exit(self, widget):
+    def exit(self, widget, event=None, do_exit=True):
         if self.modified:
             md = gtk.MessageDialog(self.window,
                                    gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION,
@@ -249,7 +250,11 @@ class DBEditor():
             result = md.run()
             md.destroy()
         if not self.modified or result == gtk.RESPONSE_YES:
-            gtk.main_quit()
+            if do_exit:
+                self.window.destroy()
+            return False
+        else:
+            return True
 
 if __name__ == '__main__':
     editor = DBEditor()
