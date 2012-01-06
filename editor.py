@@ -21,8 +21,11 @@ class DBEditor():
         self.open_item = gtk.MenuItem("Open")
         self.save_item = gtk.MenuItem("Save")
         self.exit_item = gtk.MenuItem("Exit")
+        self.langs_menu_item = gtk.MenuItem("Languages")
         self.file_menu.append(self.open_item)
         self.file_menu.append(self.save_item)
+        self.file_menu.append(gtk.SeparatorMenuItem())
+        self.file_menu.append(self.langs_menu_item)
         self.file_menu.append(gtk.SeparatorMenuItem())
         self.file_menu.append(self.exit_item)
         self.file_menu_item = gtk.MenuItem("File")
@@ -31,18 +34,7 @@ class DBEditor():
         self.open_item.connect("activate", self.open_db)
         self.save_item.connect("activate", self.save_db)
         self.exit_item.connect("activate", self.exit)
-
-        self.langs_menu = gtk.Menu()
-        self.add_lang_item = gtk.MenuItem("Add language")
-        self.del_lang_item = gtk.MenuItem("Remove language")
-        self.ren_lang_item = gtk.MenuItem("Rename language")
-        self.langs_menu.append(self.add_lang_item)
-        self.langs_menu.append(self.del_lang_item)
-        self.langs_menu.append(self.ren_lang_item)
-        self.langs_menu_item = gtk.MenuItem("Languages")
-        self.langs_menu_item.set_submenu(self.langs_menu)
-        self.add_lang_item.connect("activate", self.add_language_dialog)
-        self.menu_bar.append(self.langs_menu_item)
+        self.langs_menu_item.connect("activate", self.languages_menu)
 
         self.hb_words = gtk.HBox()
         self.scr_words = gtk.ScrolledWindow()
@@ -149,6 +141,7 @@ class DBEditor():
                     translations.append((tr,))
             self.words_store.append((self.linguas[lang], word, translations, id))
 
+        self.linguas_model = linguas_model
         self.window.set_title("%s - %s" % (basename(filename), base_title))
 
     def lingua_changed(self, widget, path, text, model):
@@ -226,27 +219,67 @@ class DBEditor():
         self.modified = False
         self.db.commit()
 
-    def add_language_dialog(self, widget):
-        dialog = gtk.Dialog("Add language",
+    def languages_menu(self, widget):
+        def do_add_lingua(widget):
+            self.linguas_model.append(("New language",))
+            res = self.cursor.execute("INSERT INTO dictionaries (lang, repeat_time) VALUES (\"New language\", 259200)")
+            self.linguas[res.lastrowid] = "New language"
+
+        def do_remove_lingua(widget, tree_view):
+            path = tree_view.get_cursor()[0]
+            if path is None:
+                return
+            it = self.linguas_model.get_iter(path)
+            lingua = self.linguas_model.get(it, 0)[0]
+            res = self.cursor.execute("DELETE FROM dictionaries WHERE lang = ?", (unicode(lingua),))
+            for key, item in self.linguas.items():
+                if item == lingua:
+                    del self.linguas[key]
+                    self.cursor.execute("UPDATE words SET lang_id = 1 WHERE lang_id = ?", (key,))
+                    break
+            self.linguas_model.remove(it)
+
+        def do_edit_lingua(widget, path, text):
+            prev_text = self.linguas_model[path][0]
+            for key, item in self.linguas.items():
+                if item == prev_text:
+                    self.linguas[key] = text
+                    lang_id = key
+                    break
+            self.linguas_model[path][0] = text
+            self.cursor.execute("UPDATE dictionaries SET lang = ? WHERE lang = ?", (unicode(text), unicode(prev_text)))
+
+        dialog = gtk.Dialog("Languages",
                             self.window,
                             gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
-                            (gtk.STOCK_CANCEL, gtk.RESPONSE_REJECT,
-                            gtk.STOCK_OK, gtk.RESPONSE_ACCEPT))
-        label = gtk.Label("Specify language name:")
-        edit = gtk.Entry()
-        dialog.vbox.pack_start(label)
-        dialog.vbox.pack_start(edit)
-        label.show()
-        edit.show()
-        response = dialog.run()
+                            (gtk.STOCK_OK, gtk.RESPONSE_ACCEPT))
 
-        if response == gtk.RESPONSE_ACCEPT:
-            self.modified = True
-            inserted = self.cursor.execute("INSERT INTO dictionaries (lang) VALUES (?)", (unicode(edit.get_text()),))
-            linguas_model = self.combo_renderer.get_property("model")
-            linguas_model.append((edit.get_text(),))
-            lang_id = inserted.lastrowid
-            self.linguas[lang_id] = edit.get_text()
+        hbox = gtk.HBox()
+        button_vbox = gtk.VBox()
+        add_lingua = gtk.Button()
+        add_lingua.set_image(gtk.image_new_from_stock(gtk.STOCK_ADD, gtk.ICON_SIZE_BUTTON))
+        remove_lingua = gtk.Button()
+        remove_lingua.set_image(gtk.image_new_from_stock(gtk.STOCK_REMOVE, gtk.ICON_SIZE_BUTTON))
+        button_vbox.pack_start(add_lingua, True, False)
+        button_vbox.pack_start(remove_lingua, True, False)
+
+        scrolled_window = gtk.ScrolledWindow()
+        scrolled_window.set_policy(gtk.POLICY_NEVER, gtk.POLICY_AUTOMATIC)
+        tree_view = gtk.TreeView(self.linguas_model)
+        cell_renderer = gtk.CellRendererText()
+        cell_renderer.set_property("editable", True)
+        tree_view.append_column(gtk.TreeViewColumn("Language", cell_renderer, text=0))
+        scrolled_window.add(tree_view)
+        hbox.pack_start(scrolled_window)
+        hbox.pack_start(button_vbox, False, False)
+        hbox.show_all()
+
+        dialog.vbox.pack_start(hbox)
+
+        add_lingua.connect("clicked", do_add_lingua)
+        remove_lingua.connect("clicked", do_remove_lingua, tree_view)
+        cell_renderer.connect("edited", do_edit_lingua)
+        dialog.run()
         dialog.destroy()
 
     def exit(self, widget, event=None, do_exit=True):
