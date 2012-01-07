@@ -9,6 +9,14 @@ base_title = "LearnHelper editor"
 class DBEditor():
 
     def __init__(self):
+        def words_keypress(widget, event):
+            if gtk.gdk.keyval_name(event.keyval) == "Delete":
+                self.do_remove_word(None)
+
+        def translations_keypress(widget, event):
+            if gtk.gdk.keyval_name(event.keyval) == "Delete":
+                self.do_remove_translation(None)
+
         self.window = gtk.Window()
         self.window.connect("delete_event", self.exit, False)
         self.window.connect("destroy", gtk.main_quit)
@@ -41,6 +49,7 @@ class DBEditor():
         self.scr_words.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
         self.words = gtk.TreeView()
         self.words.connect("cursor-changed", self.word_selected)
+        self.words.connect("key-press-event", words_keypress)
         self.scr_words.add(self.words)
         self.hb_words.pack_start(self.scr_words)
         self.words_controls = gtk.VBox()
@@ -58,14 +67,17 @@ class DBEditor():
         self.scr_translations = gtk.ScrolledWindow()
         self.scr_translations.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
         self.translations = gtk.TreeView()
+        self.translations.connect("key-press-event", translations_keypress)
         self.scr_translations.add(self.translations)
         self.hb_translations.pack_start(self.scr_translations)
         self.translations_controls = gtk.VBox()
         self.add_translation = gtk.Button()
         self.add_translation.set_image(gtk.image_new_from_stock(gtk.STOCK_ADD, gtk.ICON_SIZE_BUTTON))
+        self.add_translation.set_sensitive(False)
         self.add_translation.connect("clicked", self.do_add_translation)
         self.remove_translation = gtk.Button()
         self.remove_translation.set_image(gtk.image_new_from_stock(gtk.STOCK_REMOVE, gtk.ICON_SIZE_BUTTON))
+        self.remove_translation.set_sensitive(False)
         self.remove_translation.connect("clicked", self.do_remove_translation)
         self.translations_controls.pack_start(self.add_translation, True, False)
         self.translations_controls.pack_start(self.remove_translation, True, False)
@@ -129,6 +141,12 @@ class DBEditor():
         self.cursor = self.db.cursor()
 
         self.linguas = dict(self.cursor.execute("SELECT id, lang FROM dictionaries"))
+        if not self.linguas:
+            self.add_word.set_sensitive(False)
+            self.remove_word.set_sensitive(False)
+            self.first_lingua = None
+        else:
+            self.first_lingua = min(self.linguas.keys())
         linguas_model = gtk.ListStore(str)
         for key in sorted(self.linguas):
             linguas_model.append((self.linguas[key],))
@@ -155,57 +173,78 @@ class DBEditor():
             self.cursor.execute("UPDATE words SET lang_id = ? WHERE word = ?", (r_lang, unicode(model[path][1])))
 
     def word_selected(self, widget):
-        it = self.words_store.get_iter(widget.get_cursor()[0])
-        self.translations.set_model(self.words_store.get(it, 2)[0])
+        try:
+            it = self.words_store.get_iter(widget.get_cursor()[0])
+            self.translations.set_model(self.words_store.get(it, 2)[0])
+            self.add_translation.set_sensitive(True)
+            self.remove_translation.set_sensitive(True)
+        except TypeError:
+            pass
 
     def word_edited(self, widget, path, text, model):
         self.modified = True
+        if text == "":
+            return self.do_remove_word(None)
+        if not len(model[path][2]):
+            # if word was just created or it hasn't any translations
+            self.do_add_translation(None)
         model[path][1] = text
         self.cursor.execute("UPDATE words SET word = ? WHERE id = ?", (unicode(text), model[path][3]))
 
     def translation_edited(self, widget, path, text):
-        model = self.words_store.get(self.words_store.get_iter(self.words.get_cursor()[0]), 2)[0]
-        model[path][0] = text
-        self.update_translations()
+        if text == "":
+            self.do_remove_translation(None)
+        else:
+            model = self.words_store.get(self.words_store.get_iter(self.words.get_cursor()[0]), 2)[0]
+            model[path][0] = text
+            self.update_translations()
 
     def do_add_word(self, widget):
         self.modified = True
-        res = self.cursor.execute("INSERT INTO words (lang_id, last_repeat) VALUES (1, 0)")
+        res = self.cursor.execute("INSERT INTO words (lang_id, last_repeat) VALUES (?, 0)", (self.first_lingua,))
         tr_model = gtk.ListStore(str)
-        self.words_store.append((self.linguas[1], "", tr_model, res.lastrowid))
+        self.words_store.append((self.linguas[self.first_lingua], "", tr_model, res.lastrowid))
         self.words.set_cursor(self.words_store.iter_n_children(None) - 1,
                               self.words.get_column(1),
                               True)
-        self.do_add_translation(None, False)
 
     def do_remove_word(self, widget):
         try:
-            it = self.words_store.get_iter(self.words.get_cursor()[0])
+            (pos,) = self.words.get_cursor()[0]
+            it = self.words_store.get_iter((pos,))
             id = self.words_store.get(it, 3)[0]
             self.cursor.execute("DELETE FROM words WHERE id = ?", (id, ))
             self.words_store.remove(it)
             self.modified = True
+            if len(self.words_store) == pos:
+                pos -= 1
             self.translations.set_model(self.translations_store)
+            if pos >= 0:
+                self.words.set_cursor(pos)
         except TypeError:
             pass
 
-    def do_add_translation(self, widget, scroll=True):
+    def do_add_translation(self, widget):
         if self.words.get_cursor()[0] is None:
             return
         model = self.translations.get_model()
-        model.append(("New translation",))
-        if scroll:
-            self.translations.set_cursor(model.iter_n_children(None) - 1,
-                                         self.translations.get_column(0),
-                                         True)
+        model.append(("",))
+        self.translations.set_cursor(model.iter_n_children(None) - 1,
+                                     self.translations.get_column(0),
+                                     True)
 
     def do_remove_translation(self, widget):
         if self.translations.get_cursor()[0] is None or self.words.get_cursor()[0] is None:
             return
+        (pos,) = self.translations.get_cursor()[0]
         model = self.translations.get_model()
-        it = model.get_iter(self.translations.get_cursor()[0])
+        it = model.get_iter((pos,))
         model.remove(it)
+        if len(model) == pos:
+            pos -= 1
         self.update_translations()
+        if pos >= 0:
+            self.translations.set_cursor(pos)
 
     def update_translations(self):
         self.modified = True
@@ -220,26 +259,52 @@ class DBEditor():
         self.db.commit()
 
     def languages_menu(self, widget):
+        def keypress(widget, event):
+            if gtk.gdk.keyval_name(event.keyval) == "Delete":
+                do_remove_lingua(widget, tree_view)
+
         def do_add_lingua(widget):
             self.modified = True
-            self.linguas_model.append(("New language",))
-            res = self.cursor.execute("INSERT INTO dictionaries (lang, repeat_time) VALUES (\"New language\", 259200)")
-            self.linguas[res.lastrowid] = "New language"
+            self.linguas_model.append(("",))
+            res = self.cursor.execute("INSERT INTO dictionaries (lang, repeat_time) VALUES (\"\", 259200)")
+            tree_view.set_cursor(self.linguas_model.iter_n_children(None) - 1,
+                                 tree_view.get_column(0),
+                                 True)
+            self.linguas[res.lastrowid] = ""
+            if len(self.linguas) == 1:
+                self.first_lingua = res.lastrowid
+                self.add_word.set_sensitive(True)
+                self.remove_word.set_sensitive(True)
 
         def do_remove_lingua(widget, tree_view):
             path = tree_view.get_cursor()[0]
             if path is None:
                 return
+            (pos,) = path
             self.modified = True
             it = self.linguas_model.get_iter(path)
             lingua = self.linguas_model.get(it, 0)[0]
             res = self.cursor.execute("DELETE FROM dictionaries WHERE lang = ?", (unicode(lingua),))
             for key, item in self.linguas.items():
-                if item == lingua:
+                if item == lingua or item == "":
                     del self.linguas[key]
-                    self.cursor.execute("UPDATE words SET lang_id = 1 WHERE lang_id = ?", (key,))
+                    self.cursor.execute("DELETE FROM words WHERE lang_id = ?", (key,))
+                    # remove all words in this language
+                    k = 0
+                    for x in xrange(len(self.words_store)):
+                        if self.words_store[x-k][0] == lingua:
+                            del self.words_store[x-k]
+                            k += 1
                     break
             self.linguas_model.remove(it)
+            if len(self.linguas_model) == pos:
+                pos -= 1
+            if not len(self.linguas):
+                self.add_word.set_sensitive(False)
+                self.remove_word.set_sensitive(False)
+            self.translations.set_model(self.translations_store)
+            if pos >= 0:
+                tree_view.set_cursor(pos)
 
         def do_edit_lingua(widget, path, text):
             self.modified = True
@@ -249,14 +314,21 @@ class DBEditor():
                     self.linguas[key] = text
                     lang_id = key
                     break
-            self.linguas_model[path][0] = text
-            self.cursor.execute("UPDATE dictionaries SET lang = ? WHERE lang = ?", (unicode(text), unicode(prev_text)))
+            (word_count,) = self.cursor.execute("SELECT COUNT(*) FROM words WHERE lang_id = ?", (lang_id,)).fetchone()
+            if not text and word_count == 0:
+                # it's convenient when you've created language and immediately want to undo creation
+                # so you can undo by clicking to random place or by pressing Enter
+                do_remove_lingua(widget, tree_view)
+            else:
+                self.linguas_model[path][0] = text
+                self.cursor.execute("UPDATE dictionaries SET lang = ? WHERE lang = ?", (unicode(text), unicode(prev_text)))
 
         dialog = gtk.Dialog("Languages",
                             self.window,
                             gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
                             (gtk.STOCK_OK, gtk.RESPONSE_ACCEPT))
 
+        dialog.resize(250, 150)
         hbox = gtk.HBox()
         button_vbox = gtk.VBox()
         add_lingua = gtk.Button()
@@ -269,6 +341,7 @@ class DBEditor():
         scrolled_window = gtk.ScrolledWindow()
         scrolled_window.set_policy(gtk.POLICY_NEVER, gtk.POLICY_AUTOMATIC)
         tree_view = gtk.TreeView(self.linguas_model)
+        tree_view.connect("key-press-event", keypress)
         cell_renderer = gtk.CellRendererText()
         cell_renderer.set_property("editable", True)
         tree_view.append_column(gtk.TreeViewColumn("Language", cell_renderer, text=0))
