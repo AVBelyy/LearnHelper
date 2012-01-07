@@ -20,7 +20,7 @@ db = connection.cursor()
 
 empty_msg = "База слов пуста. Добавьте слова в редакторе и приходите снова"
 
-if sys.version_info.major == 2:
+if sys.version_info[0] == 2:
     def input(prompt=""):
         return raw_input(prompt.encode("utf-8")).decode("utf-8")
 
