@@ -1,5 +1,7 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
+from __future__ import print_function
+from __future__ import unicode_literals
 
 db_initcode = \
 """
@@ -17,6 +19,10 @@ connection = sqlite3.connect("words.db")
 db = connection.cursor()
 
 empty_msg = "База слов пуста. Добавьте слова в редакторе и приходите снова"
+
+if sys.version_info.major == 2:
+    def input(prompt=""):
+        return raw_input(prompt.encode("utf-8")).decode("utf-8")
 
 def db_create():
     for cmd in db_initcode.split("\n"):
