@@ -221,6 +221,7 @@ class DBEditor():
 
     def languages_menu(self, widget):
         def do_add_lingua(widget):
+            self.modified = True
             self.linguas_model.append(("New language",))
             res = self.cursor.execute("INSERT INTO dictionaries (lang, repeat_time) VALUES (\"New language\", 259200)")
             self.linguas[res.lastrowid] = "New language"
@@ -229,6 +230,7 @@ class DBEditor():
             path = tree_view.get_cursor()[0]
             if path is None:
                 return
+            self.modified = True
             it = self.linguas_model.get_iter(path)
             lingua = self.linguas_model.get(it, 0)[0]
             res = self.cursor.execute("DELETE FROM dictionaries WHERE lang = ?", (unicode(lingua),))
@@ -240,6 +242,7 @@ class DBEditor():
             self.linguas_model.remove(it)
 
         def do_edit_lingua(widget, path, text):
+            self.modified = True
             prev_text = self.linguas_model[path][0]
             for key, item in self.linguas.items():
                 if item == prev_text:
