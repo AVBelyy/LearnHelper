@@ -1,2 +1,4 @@
 words.db*
 *.swp
+*.pyc
+*.pyo
