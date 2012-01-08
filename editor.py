@@ -199,11 +199,20 @@ class DBEditor():
         self.cursor.execute("UPDATE words SET word = ? WHERE id = ?", (unicode(text), model[path][3]))
 
     def translation_edited(self, widget, path, text):
+        text = text.strip()
         if text == "":
             self.do_remove_translation(None)
         else:
-            model = self.words_store.get(self.words_store.get_iter(self.words.get_cursor()[0]), 2)[0]
-            model[path][0] = text
+            w_it = self.words_store.get_iter(self.words.get_cursor()[0])
+            t_pos = int(path)
+            t_it = self.translations.get_model().get_iter((t_pos,))
+            model = self.words_store.get(w_it, 2)[0]
+            translations = map(lambda x: x.strip(), text.split(","))
+            model[path][0] = translations[0]
+            for trans in translations[1:][::-1]:
+                model.insert_after(t_it, (trans,))
+                t_pos += 1
+            self.translations.set_cursor((t_pos,))
             self.update_translations()
 
     def do_add_word(self, widget):
