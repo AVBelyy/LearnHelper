@@ -2,7 +2,7 @@
 
 import gtk, gobject, sqlite3
 from os.path import basename
-import os
+import ConfigParser, os
 
 base_title = "LearnHelper editor"
 
@@ -12,8 +12,18 @@ class DBEditor():
         title = self.window.get_title()
         if flag and title[0] != "*":
             self.window.set_title("*"+title)
-        elif not flag:
+        elif not flag and title[0] == "*":
             self.window.set_title(title[1:])
+
+    def get_config(self, opt, default=None):
+        try:
+            return self.config.get("Preferences", opt)
+        except ConfigParser.NoOptionError:
+            return default
+
+    def set_config(self, opt, value):
+        if value:
+            self.config.set("Preferences", opt, value)
 
     def __init__(self):
         def words_keypress(widget, event):
@@ -23,6 +33,20 @@ class DBEditor():
         def translations_keypress(widget, event):
             if gtk.gdk.keyval_name(event.keyval) == "Delete":
                 self.do_remove_translation(None)
+
+        def create_config():
+            self.config = ConfigParser.RawConfigParser()
+            self.config.add_section("Preferences")
+            self.config.write(open("prefs.cfg", "w"))
+
+        self.config = ConfigParser.RawConfigParser()
+        try:
+            self.config.readfp(open("prefs.cfg"))
+        except IOError:
+            # file doesn't exist
+            create_config()
+        if not self.config.has_section("Preferences"):
+            create_config()
 
         self.window = gtk.Window()
         self.window.connect("delete_event", self.exit, False)
@@ -61,7 +85,7 @@ class DBEditor():
         self.file_menu_item = gtk.MenuItem("_Editor")
         self.file_menu_item.set_submenu(self.file_menu)
         self.menu_bar.append(self.file_menu_item)
-        self.open_item.connect("activate", self.open_db)
+        self.open_item.connect("activate", self.open_db, False)
         self.save_item.connect("activate", self.save_db)
         self.exit_item.connect("activate", self.exit)
         self.langs_menu_item.connect("activate", self.languages_menu)
@@ -132,30 +156,33 @@ class DBEditor():
         self.window.add(self.main_vbox)
         self.window.show_all()
 
+        self.filename = None
         self.db = None
         self.cursor = None
 
         self.modified = False
         self.open_db(None)
 
-    def open_db(self, item):
-        dialog = gtk.FileChooserDialog(
-            "Select database file",
-            action=gtk.FILE_CHOOSER_ACTION_OPEN,
-            buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_REJECT,
-                     gtk.STOCK_OK, gtk.RESPONSE_ACCEPT))
-        filter = gtk.FileFilter()
-        filter.set_name("SQLite databases")
-        filter.add_pattern("*.db")
-        filter.add_mime_type("application/x-sqlite3")
-        dialog.add_filter(filter)
-        dialog.set_current_folder(".")
-        dialog.run()
-        dialog.hide()
-
-        filename = dialog.get_filename()
-        if not filename:
-            return
+    def open_db(self, item, at_startup=True):
+        filename = self.get_config("last_db")
+        if not filename or not at_startup:
+            dialog = gtk.FileChooserDialog(
+                "Select database file",
+                action=gtk.FILE_CHOOSER_ACTION_OPEN,
+                buttons=(gtk.STOCK_CANCEL, gtk.RESPONSE_REJECT,
+                         gtk.STOCK_OK, gtk.RESPONSE_ACCEPT))
+            filter = gtk.FileFilter()
+            filter.set_name("SQLite databases")
+            filter.add_pattern("*.db")
+            filter.add_mime_type("application/x-sqlite3")
+            dialog.add_filter(filter)
+            dialog.set_current_folder(".")
+            dialog.run()
+            dialog.hide()
+            filename = dialog.get_filename()
+            if not filename:
+                return
+        self.filename = filename
         if self.cursor:
             self.cursor.close()
             self.db.commit()
@@ -188,6 +215,8 @@ class DBEditor():
         self.window.set_title("%s - %s" % (basename(filename), base_title))
 
     def lingua_changed(self, widget, path, text, model):
+        if model[path][0] == text:
+            return
         model[path][0] = text
         self.set_modified(True)
         r_lang = None
@@ -195,7 +224,7 @@ class DBEditor():
             if lang == text:
                 r_lang = lang_id
         if r_lang is not None:
-            self.cursor.execute("UPDATE words SET lang_id = ? WHERE word = ?", (r_lang, unicode(model[path][1])))
+            self.cursor.execute("UPDATE words SET lang_id = ? WHERE id = ?", (r_lang, unicode(model[path][3])))
 
     def word_selected(self, widget):
         try:
@@ -402,6 +431,9 @@ class DBEditor():
         if not self.modified or result == gtk.RESPONSE_YES:
             if do_exit:
                 self.window.destroy()
+            # save config
+            self.set_config("last_db", self.filename)
+            self.config.write(open("prefs.cfg", "w"))
             return False
         else:
             return True
