@@ -29,6 +29,7 @@ class DBEditor():
         self.window.connect("destroy", gtk.main_quit)
         self.window.set_title(base_title)
         self.window.set_default_size(500, 300)
+        self.window.set_icon_from_file("res/icon.png")
         self.main_vbox = gtk.VBox()
 
         accel_group = gtk.AccelGroup()
