@@ -60,6 +60,9 @@ class DBEditor():
         self.window.add_accel_group(accel_group)
         self.menu_bar = gtk.MenuBar()
         self.file_menu = gtk.Menu()
+        # Add-word shortcut
+        key, mod = gtk.accelerator_parse("<Control>A")
+        accel_group.connect_group(key, mod, gtk.ACCEL_VISIBLE, lambda *x: self.do_add_word(None))
         # Open menuitem
         key, mod = gtk.accelerator_parse("<Control>O")
         self.open_item = gtk.ImageMenuItem(gtk.STOCK_OPEN, accel_group)
