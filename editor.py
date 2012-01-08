@@ -31,11 +31,25 @@ class DBEditor():
         self.window.set_default_size(500, 300)
         self.main_vbox = gtk.VBox()
 
+        accel_group = gtk.AccelGroup()
+        self.window.add_accel_group(accel_group)
         self.menu_bar = gtk.MenuBar()
         self.file_menu = gtk.Menu()
-        self.open_item = gtk.MenuItem("Open")
-        self.save_item = gtk.MenuItem("Save")
-        self.exit_item = gtk.MenuItem("Exit")
+        # Open menuitem
+        key, mod = gtk.accelerator_parse("<Control>O")
+        self.open_item = gtk.ImageMenuItem(gtk.STOCK_OPEN, accel_group)
+        self.open_item.add_accelerator("activate", accel_group, key, 
+                                       mod, gtk.ACCEL_VISIBLE)
+        # Save menuitem
+        key, mod = gtk.accelerator_parse("<Control>S")
+        self.save_item = gtk.ImageMenuItem(gtk.STOCK_SAVE, accel_group)
+        self.save_item.add_accelerator("activate", accel_group, key,
+                                       mod, gtk.ACCEL_VISIBLE)
+        # Exit menuitem
+        key, mod = gtk.accelerator_parse("<Control>Q")
+        self.exit_item = gtk.ImageMenuItem(gtk.STOCK_QUIT, accel_group)
+        self.exit_item.add_accelerator("activate", accel_group, key,
+                                       mod, gtk.ACCEL_VISIBLE)
         self.langs_menu_item = gtk.MenuItem("Languages")
         self.file_menu.append(self.open_item)
         self.file_menu.append(self.save_item)
