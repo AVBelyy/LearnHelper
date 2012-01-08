@@ -7,6 +7,13 @@ import os
 base_title = "LearnHelper editor"
 
 class DBEditor():
+    def set_modified(self, flag):
+        self.modified = flag
+        title = self.window.get_title()
+        if flag and title[0] != "*":
+            self.window.set_title("*"+title)
+        elif not flag:
+            self.window.set_title(title[1:])
 
     def __init__(self):
         def words_keypress(widget, event):
@@ -36,7 +43,7 @@ class DBEditor():
         self.file_menu.append(self.langs_menu_item)
         self.file_menu.append(gtk.SeparatorMenuItem())
         self.file_menu.append(self.exit_item)
-        self.file_menu_item = gtk.MenuItem("File")
+        self.file_menu_item = gtk.MenuItem("Editor")
         self.file_menu_item.set_submenu(self.file_menu)
         self.menu_bar.append(self.file_menu_item)
         self.open_item.connect("activate", self.open_db)
@@ -113,7 +120,7 @@ class DBEditor():
         self.db = None
         self.cursor = None
 
-        self.modified = False
+        self.set_modified(False)
         self.open_db(None)
 
     def open_db(self, item):
@@ -164,7 +171,7 @@ class DBEditor():
 
     def lingua_changed(self, widget, path, text, model):
         model[path][0] = text
-        self.modified = True
+        self.set_modified(True)
         r_lang = None
         for lang_id, lang in self.linguas.items():
             if lang == text:
@@ -182,7 +189,7 @@ class DBEditor():
             pass
 
     def word_edited(self, widget, path, text, model):
-        self.modified = True
+        self.set_modified(True)
         if text == "":
             return self.do_remove_word(None)
         if not len(model[path][2]):
@@ -200,7 +207,7 @@ class DBEditor():
             self.update_translations()
 
     def do_add_word(self, widget):
-        self.modified = True
+        self.set_modified(True)
         res = self.cursor.execute("INSERT INTO words (lang_id, last_repeat) VALUES (?, 0)", (self.first_lingua,))
         tr_model = gtk.ListStore(str)
         self.words_store.append((self.linguas[self.first_lingua], "", tr_model, res.lastrowid))
@@ -215,7 +222,7 @@ class DBEditor():
             id = self.words_store.get(it, 3)[0]
             self.cursor.execute("DELETE FROM words WHERE id = ?", (id, ))
             self.words_store.remove(it)
-            self.modified = True
+            self.set_modified(True)
             if len(self.words_store) == pos:
                 pos -= 1
             self.translations.set_model(self.translations_store)
@@ -247,7 +254,7 @@ class DBEditor():
             self.translations.set_cursor(pos)
 
     def update_translations(self):
-        self.modified = True
+        self.set_modified(True)
         linguas = dict((lang, id) for id, lang in self.linguas.items())
         it = self.words_store.get_iter(self.words.get_cursor()[0])
         id = self.words_store.get(it, 3)[0]
@@ -255,7 +262,7 @@ class DBEditor():
         self.cursor.execute("UPDATE words SET translation = ? WHERE id = ?", ("|".join(map(lambda x: unicode(x[0]), list(trans))), id))
 
     def save_db(self, widget):
-        self.modified = False
+        self.set_modified(False)
         self.db.commit()
 
     def languages_menu(self, widget):
@@ -264,7 +271,7 @@ class DBEditor():
                 do_remove_lingua(widget, tree_view)
 
         def do_add_lingua(widget):
-            self.modified = True
+            self.set_modified(True)
             self.linguas_model.append(("",))
             res = self.cursor.execute("INSERT INTO dictionaries (lang, repeat_time) VALUES (\"\", 259200)")
             tree_view.set_cursor(self.linguas_model.iter_n_children(None) - 1,
@@ -281,7 +288,7 @@ class DBEditor():
             if path is None:
                 return
             (pos,) = path
-            self.modified = True
+            self.set_modified(True)
             it = self.linguas_model.get_iter(path)
             lingua = self.linguas_model.get(it, 0)[0]
             res = self.cursor.execute("DELETE FROM dictionaries WHERE lang = ?", (unicode(lingua),))
@@ -307,7 +314,7 @@ class DBEditor():
                 tree_view.set_cursor(pos)
 
         def do_edit_lingua(widget, path, text):
-            self.modified = True
+            self.set_modified(True)
             prev_text = self.linguas_model[path][0]
             for key, item in self.linguas.items():
                 if item == prev_text:
