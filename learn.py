@@ -47,9 +47,7 @@ def select_lang():
 repeat = []
 correct = True
 
-lang_count, count = db.execute("SELECT (SELECT COUNT(*) FROM dictionaries), (SELECT COUNT(*) FROM words)").fetchone()
-
-parser = OptionParser(description="Database: %d words in %d languages" % (count, lang_count))
+parser = OptionParser()
 parser.add_option("-r", "--reset",
                   action="store_true", dest="reset", default=False,
                   help="repeat all words again")
@@ -70,6 +68,7 @@ if options.clear:
     db.close()
     exit(0)
 
+lang_count, count = db.execute("SELECT (SELECT COUNT(*) FROM dictionaries), (SELECT COUNT(*) FROM words)").fetchone()
 if lang_count == 1:
     (lang_id, count) = db.execute("SELECT (SELECT id FROM dictionaries), (SELECT COUNT(*) FROM words)").fetchone()
 elif lang_count != 0:
