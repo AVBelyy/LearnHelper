@@ -243,7 +243,7 @@ class DBEditor():
         if not len(model[path][2]) and (len(parts) == 1 or not parts[1]):
             # if word was just created or it hasn't any translations
             self.do_add_translation(None)
-        else:
+        elif len(parts) > 1 and parts[1]:
             t_model = self.translations.get_model()
             t_model.clear()
             for trans in map(lambda x: x.strip(), parts[1].split(",")):
