@@ -237,13 +237,22 @@ class DBEditor():
 
     def word_edited(self, widget, path, text, model):
         self.set_modified(True)
-        if text == "":
+        parts = map(lambda x: x.strip(), text.split("="))
+        if parts[0] == "":
             return self.do_remove_word(None)
-        if not len(model[path][2]):
+        if not len(model[path][2]) and (len(parts) == 1 or not parts[1]):
             # if word was just created or it hasn't any translations
             self.do_add_translation(None)
-        model[path][1] = text
-        self.cursor.execute("UPDATE words SET word = ? WHERE id = ?", (unicode(text), model[path][3]))
+        else:
+            t_model = self.translations.get_model()
+            t_model.clear()
+            for trans in map(lambda x: x.strip(), parts[1].split(",")):
+                if trans:
+                    t_model.append((trans,))
+            self.translations.set_cursor(t_model.iter_n_children(None) - 1)
+            self.update_translations()
+        model[path][1] = parts[0]
+        self.cursor.execute("UPDATE words SET word = ? WHERE id = ?", (unicode(parts[0]), model[path][3]))
 
     def translation_edited(self, widget, path, text):
         text = text.strip()
@@ -257,8 +266,9 @@ class DBEditor():
             translations = map(lambda x: x.strip(), text.split(","))
             model[path][0] = translations[0]
             for trans in translations[1:][::-1]:
-                model.insert_after(t_it, (trans,))
-                t_pos += 1
+                if trans:
+                    model.insert_after(t_it, (trans,))
+                    t_pos += 1
             self.translations.set_cursor((t_pos,))
             self.update_translations()
 
