@@ -57,7 +57,7 @@ class DBEditor():
         self.file_menu.append(self.langs_menu_item)
         self.file_menu.append(gtk.SeparatorMenuItem())
         self.file_menu.append(self.exit_item)
-        self.file_menu_item = gtk.MenuItem("Editor")
+        self.file_menu_item = gtk.MenuItem("_Editor")
         self.file_menu_item.set_submenu(self.file_menu)
         self.menu_bar.append(self.file_menu_item)
         self.open_item.connect("activate", self.open_db)
@@ -134,7 +134,7 @@ class DBEditor():
         self.db = None
         self.cursor = None
 
-        self.set_modified(False)
+        self.modified = False
         self.open_db(None)
 
     def open_db(self, item):
@@ -161,6 +161,8 @@ class DBEditor():
         self.db = sqlite3.connect(filename)
         self.cursor = self.db.cursor()
 
+        self.words_store.clear()
+
         self.linguas = dict(self.cursor.execute("SELECT id, lang FROM dictionaries"))
         if not self.linguas:
             self.add_word.set_sensitive(False)
@@ -181,6 +183,7 @@ class DBEditor():
             self.words_store.append((self.linguas[lang], word, translations, id))
 
         self.linguas_model = linguas_model
+        self.words.set_cursor((0,))
         self.window.set_title("%s - %s" % (basename(filename), base_title))
 
     def lingua_changed(self, widget, path, text, model):
